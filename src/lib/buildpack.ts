@@ -231,29 +231,6 @@ export function compressBlocks(blocks: ParsedBlock[]): Op[] {
 // -------------------------------------------------------- mcfunction text --
 const rel = (n: number) => `~${n}`;
 
-/** Escapes a value for safe embedding inside a JSON text component string. */
-const esc = (value: string) => JSON.stringify(String(value)).slice(1, -1);
-
-/** Helper functions MinePacker always regenerates itself. */
-export const GENERATED_HELPERS = ["generate", "genrate", "load", "list", "info"];
-
-/**
- * Minecraft renamed the function directory from `functions` (1.20.6 and older)
- * to `function` (1.21+). Writing both keeps one pack runnable on either
- * version — the unused directory is simply ignored by the game.
- */
-export function functionPaths(ns: string, name: string): string[] {
-  return [
-    `data/${ns}/function/${name}.mcfunction`,
-    `data/${ns}/functions/${name}.mcfunction`,
-  ];
-}
-
-/** Writes one function into every directory layout Minecraft may look in. */
-function writeFunction(zip: JSZip, ns: string, name: string, text: string) {
-  for (const path of functionPaths(ns, name)) zip.file(path, text);
-}
-
 export function originOf(ops: Op[]): Vec3 {
   const lo: Vec3 = [Infinity, Infinity, Infinity];
   for (const o of ops) for (let i = 0; i < 3; i++) lo[i] = Math.min(lo[i], o.a[i], o.b[i]);
@@ -264,10 +241,10 @@ export function buildFunctionText(label: string, ns: string, count: number, ops:
   const lo = originOf(ops);
   const lines: string[] = [
     "# ============================================================",
-    `#  ${label} — ${FORGE_NAME} v${FORGE_VERSION} · by ${CREATOR}`,
+    `#  ${label} - ${FORGE_NAME} v${FORGE_VERSION} - by ${CREATOR}`,
     `#  ${count} blocks | ${ops.length} commands | origin lands at your feet`,
     "# ============================================================",
-    `title @s actionbar {"text":"Forging ${esc(label)} ...","color":"green"}`,
+    `title @s actionbar {"text":"Building ${label} ...","color":"green"}`,
     "",
   ];
   for (const { a, b, block } of ops) {
@@ -282,16 +259,20 @@ export function buildFunctionText(label: string, ns: string, count: number, ops:
   lines.push(
     "",
     "playsound minecraft:entity.player.levelup master @s ~ ~ ~",
-    `tellraw @s [{"text":"[${esc(ns)}] ","color":"green"},{"text":"${esc(label)} placed - ${count} blocks in ${ops.length} commands","color":"gray"}]`
+    `tellraw @s [{"text":"[${ns}] ","color":"green"},{"text":"${label} placed - ${count} blocks in ${ops.length} commands","color":"gray"}]`
   );
   return lines.join("\n") + "\n";
 }
 
 export function dispatcherText(ns: string, def: string) {
-  return (
-    `# default build — change by re-forging or editing this file\n` +
-    `function ${ns}:${def}\n`
-  );
+  if (!def) {
+    return (
+      `# no default build set yet\n` +
+      `tellraw @s [{"text":"[${FORGE_NAME}] ","color":"red"},` +
+      `{"text":"no default build - run /function ${ns}:list","color":"gray"}]\n`
+    );
+  }
+  return `# default build - re-merge to change it\nfunction ${ns}:${def}\n`;
 }
 
 export function listText(ns: string, builds: PackBuild[]) {
@@ -301,8 +282,8 @@ export function listText(ns: string, builds: PackBuild[]) {
   const rows = builds
     .map(
       (b) =>
-        `tellraw @s [{"text":"  ▸ ","color":"dark_gray"},` +
-        `{"text":"/function ${esc(ns)}:${esc(b.name)}","color":"aqua"},` +
+        `tellraw @s [{"text":"  > ","color":"dark_gray"},` +
+        `{"text":"/function ${ns}:${b.name}","color":"aqua","clickEvent":{"action":"suggest_command","value":"/function ${ns}:${b.name}"}},` +
         `{"text":"  ${b.blocks} blocks / ${b.commands} cmds","color":"dark_gray"}]`
     )
     .join("\n");
@@ -312,7 +293,7 @@ export function listText(ns: string, builds: PackBuild[]) {
 export function loadText(ns: string) {
   return (
     `tellraw @s [{"text":"[${FORGE_NAME}] ","color":"green"},` +
-    `{"text":"pack loaded — run ","color":"gray"},` +
+    `{"text":"pack loaded - run ","color":"gray"},` +
     `{"text":"/function ${ns}:list","color":"aqua"},` +
     `{"text":" to see every build command.","color":"gray"}]\n`
   );
@@ -324,8 +305,8 @@ export function infoText(ns: string, builds: PackBuild[], def: string) {
   return (
     `tellraw @s [{"text":"[${FORGE_NAME} v${FORGE_VERSION}] ","color":"green"},` +
     `{"text":"namespace ","color":"gray"},{"text":"${ns}","color":"yellow"},` +
-    `{"text":" · ${builds.length} builds · ${blocks} blocks · ${cmds} commands · default ","color":"gray"},` +
-    `{"text":"${def}","color":"aqua"},{"text":" · pack by ${CREATOR}","color":"dark_gray"}]\n`
+    `{"text":" | ${builds.length} builds | ${blocks} blocks | ${cmds} commands | default ","color":"gray"},` +
+    `{"text":"${def || "none"}","color":"aqua"},{"text":" | pack by ${CREATOR}","color":"dark_gray"}]\n`
   );
 }
 
@@ -334,10 +315,15 @@ export function mcmetaText(packName: string, builds: PackBuild[]) {
     {
       pack: {
         pack_format: 48,
-        supported_formats: [48, 57, 61, 71],
-        description: `${packName} — ${builds.length} build${
+        // supported_formats must be a single int, a two-value [min, max]
+        // array, or a {min_inclusive, max_inclusive} object. A four-value
+        // array is invalid and makes Minecraft reject pack.mcmeta, which
+        // silently prevents the whole datapack (and every /function in it)
+        // from loading.
+        supported_formats: { min_inclusive: 4, max_inclusive: 99 },
+        description: `${packName} - ${builds.length} build${
           builds.length === 1 ? "" : "s"
-        } · ${FORGE_NAME} v${FORGE_VERSION} by ${CREATOR}`,
+        } - ${FORGE_NAME} v${FORGE_VERSION} by ${CREATOR}`,
       },
     },
     null,
@@ -376,22 +362,48 @@ export function makeManifest(
 }
 
 // ------------------------------------------------------------- packaging ---
+/** 1.21+ uses data/<ns>/function, 1.20.x and older use .../functions.
+ *  Writing both keeps one zip working on every version — Minecraft simply
+ *  ignores the folder it does not use. */
+const FUNCTION_DIRS = ["function", "functions"] as const;
+
+/** Writes one .mcfunction into every supported function folder. */
+export function writeFunctionFile(zip: JSZip, ns: string, name: string, text: string) {
+  for (const dir of FUNCTION_DIRS) {
+    zip.file(`data/${ns}/${dir}/${name}.mcfunction`, text);
+  }
+}
+
+/** Reads a build's .mcfunction from whichever folder the pack used. */
+export async function readFunctionFile(
+  zip: JSZip,
+  ns: string,
+  name: string
+): Promise<string | null> {
+  for (const dir of FUNCTION_DIRS) {
+    const f = zip.file(`data/${ns}/${dir}/${name}.mcfunction`);
+    if (f) return f.async("string");
+  }
+  return null;
+}
+
 function writeShared(zip: JSZip, manifest: Manifest) {
   const { namespace: ns, builds, default: def, packName } = manifest;
   zip.file(MANIFEST, JSON.stringify(manifest, null, 2));
   zip.file("pack.mcmeta", mcmetaText(packName, builds));
 
-  writeFunction(zip, ns, "generate", dispatcherText(ns, def));
-  writeFunction(
+  writeFunctionFile(zip, ns, "generate", dispatcherText(ns, def));
+  writeFunctionFile(
     zip,
     ns,
     "genrate",
     `# legacy spelling - both work\nfunction ${ns}:generate\n`
   );
-  writeFunction(zip, ns, "load", loadText(ns));
-  writeFunction(zip, ns, "list", listText(ns, builds));
-  writeFunction(zip, ns, "info", infoText(ns, builds, def));
+  writeFunctionFile(zip, ns, "load", loadText(ns));
+  writeFunctionFile(zip, ns, "list", listText(ns, builds));
+  writeFunctionFile(zip, ns, "info", infoText(ns, builds, def));
 
+  // the load tag folder is also singular in 1.21+ and plural before it
   const loadTag = JSON.stringify({ values: [`${ns}:load`] }, null, 2);
   zip.file("data/minecraft/tags/function/load.json", loadTag);
   zip.file("data/minecraft/tags/functions/load.json", loadTag);
@@ -427,7 +439,7 @@ export async function forgeZip(building: Building, opts: ForgeOptions = {}): Pro
   const builds: PackBuild[] = [{ name: cmd, blocks: blocks.length, commands: ops.length }];
 
   const zip = new JSZip();
-  writeFunction(zip, ns, cmd, functionText);
+  writeFunctionFile(zip, ns, cmd, functionText);
   writeShared(zip, makeManifest(packName, ns, cmd, builds));
 
   const blob = await zip.generateAsync({ type: "blob" });
@@ -451,8 +463,6 @@ export type LoadedPack = {
   packName: string;
   default: string;
   builds: PackBuild[];
-  /** Existing build name -> its .mcfunction source, preserved across merges. */
-  sources: Record<string, string>;
 };
 
 const NOT_MINEPACKER =
@@ -480,29 +490,12 @@ export async function readPack(file: Blob, fallbackName = "merged_pack"): Promis
   if (manifest.forge !== FORGE_NAME || !manifest.namespace || !Array.isArray(manifest.builds)) {
     throw new Error(NOT_MINEPACKER);
   }
-
-  const ns = sanitizeId(manifest.namespace, DEFAULT_NAMESPACE);
-
-  // Read every existing build function so a merge can rebuild the pack cleanly
-  // instead of mutating (and possibly corrupting) the loaded archive.
-  const sources: Record<string, string> = {};
-  for (const build of manifest.builds) {
-    for (const path of functionPaths(ns, build.name)) {
-      const entry = zip.file(path);
-      if (entry) {
-        sources[build.name] = await entry.async("string");
-        break;
-      }
-    }
-  }
-
   return {
     zip,
-    namespace: ns,
+    namespace: sanitizeId(manifest.namespace, DEFAULT_NAMESPACE),
     packName: sanitizeId(manifest.packName ?? fallbackName, fallbackName),
     default: manifest.default || manifest.builds[0]?.name || "",
     builds: manifest.builds,
-    sources,
   };
 }
 
@@ -541,7 +534,17 @@ export async function mergeIntoPack(
   const blocks = expandBuilding(building);
   const ops = compressBlocks(blocks);
   const entry: PackBuild = { name: cmd, blocks: blocks.length, commands: ops.length };
-  const newText = buildFunctionText(cmd, ns, blocks.length, ops);
+
+  const zip = pack.zip;
+  writeFunctionFile(zip, ns, cmd, buildFunctionText(cmd, ns, blocks.length, ops));
+
+  // mirror builds that came from an older pack into both folder names so
+  // every command in the merged zip resolves on any supported version
+  for (const b of pack.builds) {
+    if (b.name === cmd) continue;
+    const existing = await readFunctionFile(zip, ns, b.name);
+    if (existing !== null) writeFunctionFile(zip, ns, b.name, existing);
+  }
 
   const builds = exists
     ? pack.builds.map((b) => (b.name === cmd ? entry : b))
@@ -549,67 +552,16 @@ export async function mergeIntoPack(
   const def = opts.makeDefault || !pack.default ? cmd : pack.default;
   const packName = sanitizeId(opts.packName ?? pack.packName, "merged_pack");
 
-  // Rebuild the archive from scratch. Mutating a loaded zip can leave stale or
-  // duplicated entries behind, which is how a listed build ends up without a
-  // runnable .mcfunction file.
-  const zip = new JSZip();
-
-  // 1. every build keeps its own function (existing sources + the new build)
-  const sources: Record<string, string> = { ...pack.sources, [cmd]: newText };
-  const written: string[] = [];
-  for (const build of builds) {
-    const text = sources[build.name];
-    if (!text) continue; // source missing from the uploaded pack — skip, never emit a dead command
-    writeFunction(zip, ns, build.name, text);
-    written.push(build.name);
-  }
-
-  // 2. carry over any extra files (icons, custom data) that we do not regenerate
-  const regenerated = new Set<string>([
-    MANIFEST,
-    "pack.mcmeta",
-    "data/minecraft/tags/function/load.json",
-    "data/minecraft/tags/functions/load.json",
-    ...[...written, ...GENERATED_HELPERS].flatMap((name) => functionPaths(ns, name)),
-  ]);
-  const carryOver: string[] = [];
-  pack.zip.forEach((path, entryFile) => {
-    if (entryFile.dir || regenerated.has(path)) return;
-    carryOver.push(path);
-  });
-  for (const path of carryOver) {
-    const file = pack.zip.file(path);
-    if (file) zip.file(path, await file.async("uint8array"));
-  }
-
-  // 3. manifest, pack.mcmeta and the helper functions, rebuilt for the new list
-  const finalBuilds = builds.filter((b) => written.includes(b.name));
-  // generate.mcfunction must always point at a build that really exists,
-  // otherwise that helper fails to load too
-  const safeDef = finalBuilds.some((b) => b.name === def)
-    ? def
-    : finalBuilds[0]?.name ?? cmd;
-  writeShared(zip, makeManifest(packName, ns, safeDef, finalBuilds));
+  writeShared(zip, makeManifest(packName, ns, def, builds));
 
   const blob = await zip.generateAsync({ type: "blob" });
-
-  // 4. verify the new build really is inside the archive before handing it over
-  const check = await JSZip.loadAsync(blob);
-  if (!check.file(`data/${ns}/function/${cmd}.mcfunction`)) {
-    throw new Error(
-      `merge failed — "${cmd}" could not be written into the pack. Please try again.`
-    );
-  }
-
   return {
     blob,
     fileName: `${packName}${PACK_EXT}`,
     namespace: ns,
     command: cmd,
-    // report exactly what the archive contains, so the UI can never list a
-    // command that has no function behind it
-    builds: finalBuilds,
-    default: safeDef,
+    builds,
+    default: def,
     added: entry,
     replaced: exists,
   };

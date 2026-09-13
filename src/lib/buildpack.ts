@@ -231,6 +231,29 @@ export function compressBlocks(blocks: ParsedBlock[]): Op[] {
 // -------------------------------------------------------- mcfunction text --
 const rel = (n: number) => `~${n}`;
 
+/** Escapes a value for safe embedding inside a JSON text component string. */
+const esc = (value: string) => JSON.stringify(String(value)).slice(1, -1);
+
+/** Helper functions MinePacker always regenerates itself. */
+export const GENERATED_HELPERS = ["generate", "genrate", "load", "list", "info"];
+
+/**
+ * Minecraft renamed the function directory from `functions` (1.20.6 and older)
+ * to `function` (1.21+). Writing both keeps one pack runnable on either
+ * version — the unused directory is simply ignored by the game.
+ */
+export function functionPaths(ns: string, name: string): string[] {
+  return [
+    `data/${ns}/function/${name}.mcfunction`,
+    `data/${ns}/functions/${name}.mcfunction`,
+  ];
+}
+
+/** Writes one function into every directory layout Minecraft may look in. */
+function writeFunction(zip: JSZip, ns: string, name: string, text: string) {
+  for (const path of functionPaths(ns, name)) zip.file(path, text);
+}
+
 export function originOf(ops: Op[]): Vec3 {
   const lo: Vec3 = [Infinity, Infinity, Infinity];
   for (const o of ops) for (let i = 0; i < 3; i++) lo[i] = Math.min(lo[i], o.a[i], o.b[i]);
@@ -244,7 +267,7 @@ export function buildFunctionText(label: string, ns: string, count: number, ops:
     `#  ${label} — ${FORGE_NAME} v${FORGE_VERSION} · by ${CREATOR}`,
     `#  ${count} blocks | ${ops.length} commands | origin lands at your feet`,
     "# ============================================================",
-    `title @s actionbar ["text","Forging ${label} ..."]`,
+    `title @s actionbar {"text":"Forging ${esc(label)} ...","color":"green"}`,
     "",
   ];
   for (const { a, b, block } of ops) {
@@ -259,7 +282,7 @@ export function buildFunctionText(label: string, ns: string, count: number, ops:
   lines.push(
     "",
     "playsound minecraft:entity.player.levelup master @s ~ ~ ~",
-    `tellraw @s [{"text":"[${ns}] ","color":"green"},{"text":"${label} placed — ${count} blocks in ${ops.length} commands","color":"gray"}]`
+    `tellraw @s [{"text":"[${esc(ns)}] ","color":"green"},{"text":"${esc(label)} placed - ${count} blocks in ${ops.length} commands","color":"gray"}]`
   );
   return lines.join("\n") + "\n";
 }
@@ -279,7 +302,7 @@ export function listText(ns: string, builds: PackBuild[]) {
     .map(
       (b) =>
         `tellraw @s [{"text":"  ▸ ","color":"dark_gray"},` +
-        `{"text":"/function ${ns}:${b.name}","color":"aqua","clickEvent":{"action":"suggest_command","value":"/function ${ns}:${b.name}"}},` +
+        `{"text":"/function ${esc(ns)}:${esc(b.name)}","color":"aqua"},` +
         `{"text":"  ${b.blocks} blocks / ${b.commands} cmds","color":"dark_gray"}]`
     )
     .join("\n");
@@ -357,19 +380,21 @@ function writeShared(zip: JSZip, manifest: Manifest) {
   const { namespace: ns, builds, default: def, packName } = manifest;
   zip.file(MANIFEST, JSON.stringify(manifest, null, 2));
   zip.file("pack.mcmeta", mcmetaText(packName, builds));
-  const dir = `data/${ns}/function`;
-  zip.file(`${dir}/generate.mcfunction`, dispatcherText(ns, def));
-  zip.file(
-    `${dir}/genrate.mcfunction`,
-    `# legacy spelling — both work\nfunction ${ns}:generate\n`
+
+  writeFunction(zip, ns, "generate", dispatcherText(ns, def));
+  writeFunction(
+    zip,
+    ns,
+    "genrate",
+    `# legacy spelling - both work\nfunction ${ns}:generate\n`
   );
-  zip.file(`${dir}/load.mcfunction`, loadText(ns));
-  zip.file(`${dir}/list.mcfunction`, listText(ns, builds));
-  zip.file(`${dir}/info.mcfunction`, infoText(ns, builds, def));
-  zip.file(
-    "data/minecraft/tags/function/load.json",
-    JSON.stringify({ values: [`${ns}:load`] }, null, 2)
-  );
+  writeFunction(zip, ns, "load", loadText(ns));
+  writeFunction(zip, ns, "list", listText(ns, builds));
+  writeFunction(zip, ns, "info", infoText(ns, builds, def));
+
+  const loadTag = JSON.stringify({ values: [`${ns}:load`] }, null, 2);
+  zip.file("data/minecraft/tags/function/load.json", loadTag);
+  zip.file("data/minecraft/tags/functions/load.json", loadTag);
 }
 
 export type ForgeOptions = {
@@ -402,7 +427,7 @@ export async function forgeZip(building: Building, opts: ForgeOptions = {}): Pro
   const builds: PackBuild[] = [{ name: cmd, blocks: blocks.length, commands: ops.length }];
 
   const zip = new JSZip();
-  zip.file(`data/${ns}/function/${cmd}.mcfunction`, functionText);
+  writeFunction(zip, ns, cmd, functionText);
   writeShared(zip, makeManifest(packName, ns, cmd, builds));
 
   const blob = await zip.generateAsync({ type: "blob" });
@@ -426,6 +451,8 @@ export type LoadedPack = {
   packName: string;
   default: string;
   builds: PackBuild[];
+  /** Existing build name -> its .mcfunction source, preserved across merges. */
+  sources: Record<string, string>;
 };
 
 const NOT_MINEPACKER =
@@ -453,12 +480,29 @@ export async function readPack(file: Blob, fallbackName = "merged_pack"): Promis
   if (manifest.forge !== FORGE_NAME || !manifest.namespace || !Array.isArray(manifest.builds)) {
     throw new Error(NOT_MINEPACKER);
   }
+
+  const ns = sanitizeId(manifest.namespace, DEFAULT_NAMESPACE);
+
+  // Read every existing build function so a merge can rebuild the pack cleanly
+  // instead of mutating (and possibly corrupting) the loaded archive.
+  const sources: Record<string, string> = {};
+  for (const build of manifest.builds) {
+    for (const path of functionPaths(ns, build.name)) {
+      const entry = zip.file(path);
+      if (entry) {
+        sources[build.name] = await entry.async("string");
+        break;
+      }
+    }
+  }
+
   return {
     zip,
-    namespace: sanitizeId(manifest.namespace, DEFAULT_NAMESPACE),
+    namespace: ns,
     packName: sanitizeId(manifest.packName ?? fallbackName, fallbackName),
     default: manifest.default || manifest.builds[0]?.name || "",
     builds: manifest.builds,
+    sources,
   };
 }
 
@@ -497,9 +541,7 @@ export async function mergeIntoPack(
   const blocks = expandBuilding(building);
   const ops = compressBlocks(blocks);
   const entry: PackBuild = { name: cmd, blocks: blocks.length, commands: ops.length };
-
-  const zip = pack.zip;
-  zip.file(`data/${ns}/function/${cmd}.mcfunction`, buildFunctionText(cmd, ns, blocks.length, ops));
+  const newText = buildFunctionText(cmd, ns, blocks.length, ops);
 
   const builds = exists
     ? pack.builds.map((b) => (b.name === cmd ? entry : b))
@@ -507,16 +549,67 @@ export async function mergeIntoPack(
   const def = opts.makeDefault || !pack.default ? cmd : pack.default;
   const packName = sanitizeId(opts.packName ?? pack.packName, "merged_pack");
 
-  writeShared(zip, makeManifest(packName, ns, def, builds));
+  // Rebuild the archive from scratch. Mutating a loaded zip can leave stale or
+  // duplicated entries behind, which is how a listed build ends up without a
+  // runnable .mcfunction file.
+  const zip = new JSZip();
+
+  // 1. every build keeps its own function (existing sources + the new build)
+  const sources: Record<string, string> = { ...pack.sources, [cmd]: newText };
+  const written: string[] = [];
+  for (const build of builds) {
+    const text = sources[build.name];
+    if (!text) continue; // source missing from the uploaded pack — skip, never emit a dead command
+    writeFunction(zip, ns, build.name, text);
+    written.push(build.name);
+  }
+
+  // 2. carry over any extra files (icons, custom data) that we do not regenerate
+  const regenerated = new Set<string>([
+    MANIFEST,
+    "pack.mcmeta",
+    "data/minecraft/tags/function/load.json",
+    "data/minecraft/tags/functions/load.json",
+    ...[...written, ...GENERATED_HELPERS].flatMap((name) => functionPaths(ns, name)),
+  ]);
+  const carryOver: string[] = [];
+  pack.zip.forEach((path, entryFile) => {
+    if (entryFile.dir || regenerated.has(path)) return;
+    carryOver.push(path);
+  });
+  for (const path of carryOver) {
+    const file = pack.zip.file(path);
+    if (file) zip.file(path, await file.async("uint8array"));
+  }
+
+  // 3. manifest, pack.mcmeta and the helper functions, rebuilt for the new list
+  const finalBuilds = builds.filter((b) => written.includes(b.name));
+  // generate.mcfunction must always point at a build that really exists,
+  // otherwise that helper fails to load too
+  const safeDef = finalBuilds.some((b) => b.name === def)
+    ? def
+    : finalBuilds[0]?.name ?? cmd;
+  writeShared(zip, makeManifest(packName, ns, safeDef, finalBuilds));
 
   const blob = await zip.generateAsync({ type: "blob" });
+
+  // 4. verify the new build really is inside the archive before handing it over
+  const check = await JSZip.loadAsync(blob);
+  if (!check.file(`data/${ns}/function/${cmd}.mcfunction`)) {
+    throw new Error(
+      `merge failed — "${cmd}" could not be written into the pack. Please try again.`
+    );
+  }
+
   return {
     blob,
     fileName: `${packName}${PACK_EXT}`,
     namespace: ns,
     command: cmd,
-    builds,
-    default: def,
+    // report exactly what the archive contains, so the UI can never list a
+    // command that has no function behind it
+    builds: finalBuilds,
+    default: safeDef,
     added: entry,
     replaced: exists,
   };

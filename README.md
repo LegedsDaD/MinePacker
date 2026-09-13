@@ -68,6 +68,18 @@ npm run build
 
 The production output is written to `dist/`.
 
+## Deploying to Vercel
+
+The repository includes `vercel.json` and is ready for Vite deployment.
+
+1. Import the repository into Vercel.
+2. Keep the detected framework as **Vite**.
+3. Use `npm run build` as the build command.
+4. Use `dist` as the output directory.
+5. Deploy.
+
+No environment variables or server functions are required. Conversion and ZIP generation happen in the browser.
+
 ## Generated pack contents
 
 ```text
@@ -76,16 +88,24 @@ oak_house.minepacker.zip
 ├── minepacker.manifest.json
 └── data
     ├── minecraft/tags/function/load.json
-    └── ubuilder/function
-        ├── oak_house.mcfunction
-        ├── generate.mcfunction
-        ├── genrate.mcfunction
-        ├── list.mcfunction
-        ├── load.mcfunction
-        └── info.mcfunction
+    ├── minecraft/tags/functions/load.json
+    └── ubuilder
+        ├── function/          (Minecraft 1.21+)
+        │   ├── oak_house.mcfunction
+        │   ├── generate.mcfunction
+        │   ├── genrate.mcfunction
+        │   ├── list.mcfunction
+        │   ├── load.mcfunction
+        │   └── info.mcfunction
+        └── functions/         (Minecraft 1.20.6 and older)
+            └── the same files
 ```
 
+Minecraft renamed this directory from `functions` to `function` in 1.21. MinePacker writes both, so one pack runs on either version; the unused directory is ignored by the game.
+
 MinePacker merge accepts only packs containing a valid `minepacker.manifest.json` created by MinePacker. This keeps the build registry and generated command list synchronized.
+
+Every build listed by `/function <namespace>:list` is guaranteed to have a real `.mcfunction` file: merges are rebuilt from scratch, builds without a recoverable source are never listed, and the resulting archive is re-opened and verified before download.
 
 ## Merge options
 

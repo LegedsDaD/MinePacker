@@ -55,36 +55,85 @@ function normalizeBlock(raw: unknown, idx: number): string {
   if (typeof raw !== "string" || !raw.trim()) {
     throw new Error(`blocks[${idx}] needs a "block" id, e.g. "minecraft:oak_planks"`);
   }
-  const r = raw.trim();
-  return r.includes(":") ? r : `minecraft:${r}`;
+  let r = raw.trim().toLowerCase();
+  if (!r.includes(":")) r = `minecraft:${r}`;
+  if (!BLOCK_RE.test(r)) {
+    throw new Error(
+      `blocks[${idx}]: "${raw}" is not a valid block id (expected e.g. "minecraft:oak_planks")`
+    );
+  }
+  return r;
 }
 
+// Minecraft resource-location rules: [a-z0-9_.-] for the path/namespace.
+const ID_RE = /^[a-z0-9_.-]+$/;
+// Full block id: <namespace>:<path>, each part [a-z0-9_.-] plus / in the path.
+const BLOCK_RE = /^[a-z0-9_.-]+:[a-z0-9_./-]+(\[[^\]]*\])?(\{.*\})?$/;
+
+const ALLOWED_TOP_KEYS = new Set(["name", "namespace", "command", "blocks"]);
+const ALLOWED_ENTRY_KEYS = new Set(["pos", "from", "to", "clear", "block"]);
+
 export function parseBuilding(raw: string): Building {
+  if (!raw || !raw.trim()) {
+    throw new Error("empty file - paste a building JSON that follows the template");
+  }
   let data: unknown;
   try {
     data = JSON.parse(raw);
   } catch (e) {
-    throw new Error(`invalid JSON — ${(e as Error).message}`);
+    throw new Error(`invalid JSON - ${(e as Error).message}`);
   }
-  if (typeof data !== "object" || data === null || !Array.isArray((data as Building).blocks)) {
-    throw new Error('root must be an object with a "blocks" list');
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    throw new Error("root must be a JSON object { ... } - see the TEMPLATE tab");
   }
-  if ((data as Building).blocks.length === 0) {
-    throw new Error('"blocks" must be a non-empty list');
+  const b = data as Record<string, unknown>;
+
+  // reject unknown top-level keys early so typos surface immediately
+  for (const key of Object.keys(b)) {
+    if (!ALLOWED_TOP_KEYS.has(key)) {
+      throw new Error(`unknown field "${key}" - allowed: name, namespace, command, blocks`);
+    }
   }
-  const b = data as Building;
-  // the template requires these — no command manager to fall back on
+
+  // required string fields
   for (const key of ["name", "namespace", "command"] as const) {
     const v = b[key];
     if (typeof v !== "string" || !v.trim()) {
-      throw new Error(`missing required field "${key}" — see the TEMPLATE tab`);
+      throw new Error(`missing required field "${key}" - see the TEMPLATE tab`);
     }
   }
-  const cmd = sanitizeId(b.command!);
-  if (RESERVED.includes(cmd)) {
-    throw new Error(`"command": "${cmd}" is reserved — use a different build name`);
+
+  // strict namespace + command validation (so /function always resolves)
+  const ns = (b.namespace as string).trim().toLowerCase();
+  const cmd = (b.command as string).trim().toLowerCase();
+  if (!ID_RE.test(ns)) {
+    throw new Error(
+      `"namespace" must use only lowercase letters, numbers, _ . - (got "${b.namespace}")`
+    );
   }
-  return b;
+  if (!ID_RE.test(cmd)) {
+    throw new Error(
+      `"command" must use only lowercase letters, numbers, _ . - (got "${b.command}")`
+    );
+  }
+  if (RESERVED.includes(cmd)) {
+    throw new Error(`"command": "${cmd}" is reserved - use a different build name`);
+  }
+
+  // blocks list
+  if (!Array.isArray(b.blocks)) {
+    throw new Error('"blocks" must be a list [ ... ]');
+  }
+  if (b.blocks.length === 0) {
+    throw new Error('"blocks" must contain at least one entry');
+  }
+
+  return {
+    name: (b.name as string).trim(),
+    namespace: ns,
+    command: cmd,
+    blocks: b.blocks as (BuildingEntry | string)[],
+  };
 }
 
 /** The exact command a player runs for this building. */
@@ -118,8 +167,15 @@ export function expandBuilding(b: Building): ParsedBlock[] {
       else map.set(key, normalizeBlock(head, idx));
       return;
     }
-    if (typeof entry !== "object" || entry === null) {
-      throw new Error(`blocks[${idx}] must be an object or a compact string`);
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      throw new Error(`blocks[${idx}] must be an object { ... } or a compact string`);
+    }
+    for (const key of Object.keys(entry)) {
+      if (!ALLOWED_ENTRY_KEYS.has(key)) {
+        throw new Error(
+          `blocks[${idx}]: unknown key "${key}" - allowed: pos, from, to, clear, block`
+        );
+      }
     }
     if (entry.clear) {
       map.delete(asCoord(entry.clear, `blocks[${idx}].clear`).join(","));
@@ -244,7 +300,7 @@ export function buildFunctionText(label: string, ns: string, count: number, ops:
     `#  ${label} - ${FORGE_NAME} v${FORGE_VERSION} - by ${CREATOR}`,
     `#  ${count} blocks | ${ops.length} commands | origin lands at your feet`,
     "# ============================================================",
-    `title @s actionbar {"text":"Building ${label} ...","color":"green"}`,
+    `title @s actionbar {"text":"Forging ${label} ...","color":"yellow"}`,
     "",
   ];
   for (const { a, b, block } of ops) {
@@ -265,14 +321,10 @@ export function buildFunctionText(label: string, ns: string, count: number, ops:
 }
 
 export function dispatcherText(ns: string, def: string) {
-  if (!def) {
-    return (
-      `# no default build set yet\n` +
-      `tellraw @s [{"text":"[${FORGE_NAME}] ","color":"red"},` +
-      `{"text":"no default build - run /function ${ns}:list","color":"gray"}]\n`
-    );
-  }
-  return `# default build - re-merge to change it\nfunction ${ns}:${def}\n`;
+  return (
+    `# default build — change by re-forging or editing this file\n` +
+    `function ${ns}:${def}\n`
+  );
 }
 
 export function listText(ns: string, builds: PackBuild[]) {
@@ -282,8 +334,8 @@ export function listText(ns: string, builds: PackBuild[]) {
   const rows = builds
     .map(
       (b) =>
-        `tellraw @s [{"text":"  > ","color":"dark_gray"},` +
-        `{"text":"/function ${ns}:${b.name}","color":"aqua","clickEvent":{"action":"suggest_command","value":"/function ${ns}:${b.name}"}},` +
+        `tellraw @s [{"text":"  - ","color":"dark_gray"},` +
+        `{"text":"/function ${ns}:${b.name}","color":"aqua","click_event":{"action":"suggest_command","command":"/function ${ns}:${b.name}"}},` +
         `{"text":"  ${b.blocks} blocks / ${b.commands} cmds","color":"dark_gray"}]`
     )
     .join("\n");
@@ -305,8 +357,8 @@ export function infoText(ns: string, builds: PackBuild[], def: string) {
   return (
     `tellraw @s [{"text":"[${FORGE_NAME} v${FORGE_VERSION}] ","color":"green"},` +
     `{"text":"namespace ","color":"gray"},{"text":"${ns}","color":"yellow"},` +
-    `{"text":" | ${builds.length} builds | ${blocks} blocks | ${cmds} commands | default ","color":"gray"},` +
-    `{"text":"${def || "none"}","color":"aqua"},{"text":" | pack by ${CREATOR}","color":"dark_gray"}]\n`
+    `{"text":" - ${builds.length} builds - ${blocks} blocks - ${cmds} commands - default ","color":"gray"},` +
+    `{"text":"${def}","color":"aqua"},{"text":" - pack by ${CREATOR}","color":"dark_gray"}]\n`
   );
 }
 
@@ -315,12 +367,10 @@ export function mcmetaText(packName: string, builds: PackBuild[]) {
     {
       pack: {
         pack_format: 48,
-        // supported_formats must be a single int, a two-value [min, max]
-        // array, or a {min_inclusive, max_inclusive} object. A four-value
-        // array is invalid and makes Minecraft reject pack.mcmeta, which
-        // silently prevents the whole datapack (and every /function in it)
-        // from loading.
-        supported_formats: { min_inclusive: 4, max_inclusive: 99 },
+        supported_formats: {
+          min_inclusive: 48,
+          max_inclusive: 71,
+        },
         description: `${packName} - ${builds.length} build${
           builds.length === 1 ? "" : "s"
         } - ${FORGE_NAME} v${FORGE_VERSION} by ${CREATOR}`,
@@ -362,29 +412,19 @@ export function makeManifest(
 }
 
 // ------------------------------------------------------------- packaging ---
-/** 1.21+ uses data/<ns>/function, 1.20.x and older use .../functions.
- *  Writing both keeps one zip working on every version — Minecraft simply
- *  ignores the folder it does not use. */
-const FUNCTION_DIRS = ["function", "functions"] as const;
+// Minecraft renamed the datapack folders across versions:
+//   - 1.20.4 and earlier (pack_format <= 26): "functions" + "tags/functions"
+//   - 1.21+            (pack_format 48+):     "function"  + "tags/function"
+// We write BOTH layouts so a generated pack works on every version, and the
+// game simply ignores whichever folder it does not recognise.
+const FN_DIRS = ["function", "functions"] as const;
+const TAG_DIRS = ["tags/function", "tags/functions"] as const;
 
-/** Writes one .mcfunction into every supported function folder. */
-export function writeFunctionFile(zip: JSZip, ns: string, name: string, text: string) {
-  for (const dir of FUNCTION_DIRS) {
-    zip.file(`data/${ns}/${dir}/${name}.mcfunction`, text);
+/** Write one .mcfunction into both the singular and plural function folders. */
+function writeFunction(zip: JSZip, ns: string, name: string, content: string) {
+  for (const fn of FN_DIRS) {
+    zip.file(`data/${ns}/${fn}/${name}.mcfunction`, content);
   }
-}
-
-/** Reads a build's .mcfunction from whichever folder the pack used. */
-export async function readFunctionFile(
-  zip: JSZip,
-  ns: string,
-  name: string
-): Promise<string | null> {
-  for (const dir of FUNCTION_DIRS) {
-    const f = zip.file(`data/${ns}/${dir}/${name}.mcfunction`);
-    if (f) return f.async("string");
-  }
-  return null;
 }
 
 function writeShared(zip: JSZip, manifest: Manifest) {
@@ -392,21 +432,17 @@ function writeShared(zip: JSZip, manifest: Manifest) {
   zip.file(MANIFEST, JSON.stringify(manifest, null, 2));
   zip.file("pack.mcmeta", mcmetaText(packName, builds));
 
-  writeFunctionFile(zip, ns, "generate", dispatcherText(ns, def));
-  writeFunctionFile(
-    zip,
-    ns,
-    "genrate",
-    `# legacy spelling - both work\nfunction ${ns}:generate\n`
-  );
-  writeFunctionFile(zip, ns, "load", loadText(ns));
-  writeFunctionFile(zip, ns, "list", listText(ns, builds));
-  writeFunctionFile(zip, ns, "info", infoText(ns, builds, def));
+  writeFunction(zip, ns, "generate", dispatcherText(ns, def));
+  writeFunction(zip, ns, "genrate", `# legacy spelling - both work\nfunction ${ns}:generate\n`);
+  writeFunction(zip, ns, "load", loadText(ns));
+  writeFunction(zip, ns, "list", listText(ns, builds));
+  writeFunction(zip, ns, "info", infoText(ns, builds, def));
 
-  // the load tag folder is also singular in 1.21+ and plural before it
+  // load tag (both folder names) so :load runs automatically on /reload
   const loadTag = JSON.stringify({ values: [`${ns}:load`] }, null, 2);
-  zip.file("data/minecraft/tags/function/load.json", loadTag);
-  zip.file("data/minecraft/tags/functions/load.json", loadTag);
+  for (const tag of TAG_DIRS) {
+    zip.file(`data/minecraft/${tag}/load.json`, loadTag);
+  }
 }
 
 export type ForgeOptions = {
@@ -439,7 +475,7 @@ export async function forgeZip(building: Building, opts: ForgeOptions = {}): Pro
   const builds: PackBuild[] = [{ name: cmd, blocks: blocks.length, commands: ops.length }];
 
   const zip = new JSZip();
-  writeFunctionFile(zip, ns, cmd, functionText);
+  writeFunction(zip, ns, cmd, functionText);
   writeShared(zip, makeManifest(packName, ns, cmd, builds));
 
   const blob = await zip.generateAsync({ type: "blob" });
@@ -536,15 +572,7 @@ export async function mergeIntoPack(
   const entry: PackBuild = { name: cmd, blocks: blocks.length, commands: ops.length };
 
   const zip = pack.zip;
-  writeFunctionFile(zip, ns, cmd, buildFunctionText(cmd, ns, blocks.length, ops));
-
-  // mirror builds that came from an older pack into both folder names so
-  // every command in the merged zip resolves on any supported version
-  for (const b of pack.builds) {
-    if (b.name === cmd) continue;
-    const existing = await readFunctionFile(zip, ns, b.name);
-    if (existing !== null) writeFunctionFile(zip, ns, b.name, existing);
-  }
+  writeFunction(zip, ns, cmd, buildFunctionText(cmd, ns, blocks.length, ops));
 
   const builds = exists
     ? pack.builds.map((b) => (b.name === cmd ? entry : b))
@@ -627,43 +655,31 @@ export const sampleBuilding: Building = {
 export const sampleJson = JSON.stringify(sampleBuilding, null, 2);
 
 // ------------------------------------------------------------ templates ----
+// Strict, pure-JSON template. Every field is required and validated. No string
+// "label" entries are used here so the file is guaranteed to be valid JSON and
+// to convert successfully on the first try.
 export const REQUIRED_TEMPLATE = `{
   "name": "oak_house",
   "namespace": "ubuilder",
   "command": "oak_house",
-
   "blocks": [
-
-    "--- floor ---",
     { "from": [0, 0, 0], "to": [8, 0, 8], "block": "minecraft:oak_planks" },
-
-    "--- four walls ---",
     { "from": [0, 1, 0], "to": [0, 3, 8], "block": "minecraft:oak_planks" },
     { "from": [8, 1, 0], "to": [8, 3, 8], "block": "minecraft:oak_planks" },
     { "from": [1, 1, 0], "to": [7, 3, 0], "block": "minecraft:oak_planks" },
     { "from": [1, 1, 8], "to": [7, 3, 8], "block": "minecraft:oak_planks" },
-
-    "--- corner posts ---",
     { "pos": [0, 1, 0], "block": "minecraft:oak_log" },
     { "pos": [0, 3, 0], "block": "minecraft:oak_log" },
     { "pos": [8, 1, 0], "block": "minecraft:oak_log" },
     { "pos": [8, 3, 0], "block": "minecraft:oak_log" },
-
-    "--- windows ---",
     { "pos": [2, 2, 0], "block": "minecraft:glass" },
     { "pos": [6, 2, 0], "block": "minecraft:glass" },
     { "pos": [0, 2, 4], "block": "minecraft:glass" },
     { "pos": [8, 2, 4], "block": "minecraft:glass" },
-
-    "--- doorway: clear two blocks out of the wall ---",
     { "clear": [4, 1, 8] },
     { "clear": [4, 2, 8] },
-
-    "--- roof ---",
     { "from": [0, 4, 0], "to": [8, 4, 8], "block": "minecraft:oak_slab" },
     { "from": [2, 5, 2], "to": [6, 5, 6], "block": "minecraft:oak_slab" },
-
-    "--- lamp inside ---",
     { "pos": [4, 3, 4], "block": "minecraft:glowstone" }
   ]
 }`;
@@ -757,6 +773,9 @@ ${f}
 3. Stand at the build spot and run
    \`/function <namespace>:<command>\`.
 4. \`/function <namespace>:list\` shows every build in the pack.
+
+The pack works on Minecraft Java Edition 1.21 through 1.21.5+ (pack_format
+48–71). No mods required.
 
 ## 6 · Adding more buildings
 

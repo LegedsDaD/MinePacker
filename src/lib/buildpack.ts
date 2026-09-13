@@ -2,10 +2,15 @@ import JSZip from "jszip";
 
 export const CREATOR = "LegedsDaD";
 export const FORGE_NAME = "MinePacker";
-export const FORGE_VERSION = "2.0";
-export const MINECRAFT_TARGET_VERSION = "26.2";
-export const PACK_FORMAT_26_2 = 107;
+export const FORGE_VERSION = "2.2";
 export const PACK_EXT = ".minepacker.zip";
+
+// Version-specific target: Minecraft Java Edition 26.2 ("Chaos Cubed").
+// Since 1.21.9 the game no longer reads pack_format for version checks —
+// min_format / max_format are REQUIRED, and 26.2 uses datapack format 107
+// (see the vanilla 26.2 datapacks, e.g. minecart_improvements: [107, 1]).
+export const TARGET_MC_VERSION = "26.2";
+export const DATAPACK_FORMAT = 107;
 
 export type Vec3 = [number, number, number];
 
@@ -365,17 +370,20 @@ export function infoText(ns: string, builds: PackBuild[], def: string) {
 }
 
 export function mcmetaText(packName: string, builds: PackBuild[]) {
+  // Minecraft 26.2 ONLY, by design:
+  //   - min_format / max_format are the REQUIRED fields since 1.21.9.
+  //   - 26.2 stable is format [107, 1]; max 107 means "any 107.x minor".
+  //   - pack_format / supported_formats are deliberately ABSENT — the modern
+  //     game ignores them, and the spec says they must be omitted when the
+  //     pack does not target the old (< 82) formats.
   return JSON.stringify(
     {
       pack: {
-        pack_format: PACK_FORMAT_26_2,
-        supported_formats: {
-          min_inclusive: 15,
-          max_inclusive: 150,
-        },
+        min_format: [DATAPACK_FORMAT, 1],
+        max_format: DATAPACK_FORMAT,
         description: `${packName} - ${builds.length} build${
           builds.length === 1 ? "" : "s"
-        } - Minecraft ${MINECRAFT_TARGET_VERSION} - ${FORGE_NAME} v${FORGE_VERSION} by ${CREATOR}`,
+        } - for Minecraft ${TARGET_MC_VERSION} - ${FORGE_NAME} v${FORGE_VERSION} by ${CREATOR}`,
       },
     },
     null,
@@ -414,13 +422,13 @@ export function makeManifest(
 }
 
 // ------------------------------------------------------------- packaging ---
-// Minecraft renamed the datapack folders across versions:
-//   - 1.20.4 and earlier (pack_format <= 26): "functions" + "tags/functions"
-//   - 1.21+            (pack_format 48+):     "function"  + "tags/function"
-// We write BOTH layouts so a generated pack works on every version, and the
-// game simply ignores whichever folder it does not recognise.
-const FN_DIRS = ["function", "functions"] as const;
-const TAG_DIRS = ["tags/function", "tags/functions"] as const;
+// Minecraft 26.2 target layout:
+//   - functions live in      data/<ns>/function/                     (singular)
+//   - the load tag lives in  data/minecraft/tags/function/load.json  (singular)
+// The pack is version-specific to Minecraft 26.2 (see DATAPACK_FORMAT), so we
+// write exactly the layout that version expects — nothing extra, nothing missing.
+const FN_DIRS = ["function"] as const;
+const TAG_DIRS = ["tags/function"] as const;
 
 /** Write one .mcfunction into both the singular and plural function folders. */
 function writeFunction(zip: JSZip, ns: string, name: string, content: string) {
@@ -701,9 +709,10 @@ export const FULL_MARKDOWN = (() => {
   return `# MinePacker — building template
 
 MinePacker turns a building JSON into a Minecraft datapack
-(\`*.minepacker.zip\`). Follow this file, paste it into the **Convert** tab,
-then drop the downloaded zip into your world's \`datapacks\` folder and run
-\`/reload\`.
+(\`*.minepacker.zip\`) built specifically for **Minecraft Java Edition 26.2**
+(datapack format 107, min_format [107, 1] / max_format 107). Follow this
+file, paste it into the **Convert** tab, then drop the downloaded zip into
+your world's \`datapacks\` folder and run \`/reload\`.
 
 ## 1 · The command this creates
 
@@ -776,7 +785,9 @@ ${f}
    \`/function <namespace>:<command>\`.
 4. \`/function <namespace>:list\` shows every build in the pack.
 
-The pack is built for Minecraft Java Edition 26.2 (pack_format 107) with backwards compatibility across 1.20 - 26.2+. No mods required.
+The pack is version-specific: it targets Minecraft Java Edition 26.2
+("Chaos Cubed", datapack format 107) and uses the modern pack.mcmeta with
+required min_format / max_format fields. No mods required.
 
 ## 6 · Adding more buildings
 

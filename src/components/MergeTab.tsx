@@ -146,14 +146,9 @@ export default function MergeTab({ onNeedTemplate }: { onNeedTemplate?: () => vo
             <div className="font-mono text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text)]">
               step 1 · drop a .minepacker.zip
             </div>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <span className="rounded-full border border-[var(--gold)]/30 bg-[var(--gold)]/10 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--gold)]">
-                MinePacker packs only
-              </span>
-              <span className="rounded-full border border-[var(--green)]/30 bg-[var(--green)]/10 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--green)]">
-                MC 26.2 Target
-              </span>
-            </div>
+            <span className="rounded-full border border-[var(--gold)]/30 bg-[var(--gold)]/10 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--gold)]">
+              MinePacker packs only
+            </span>
             <p className="max-w-sm text-[12px] leading-relaxed text-[var(--muted)]">
               Merge works only with zips made by MinePacker — their manifest lists every function inside,
               so nothing can get out of sync. Convert a JSON on the Convert tab first.

@@ -1,0 +1,73 @@
+export default function Logo({ size = 30, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      fill="none"
+      className={className}
+      role="img"
+      aria-label="MinePacker logo"
+    >
+      <defs>
+        <linearGradient id="mp-top" x1="6" y1="6" x2="58" y2="32" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#97e578" />
+          <stop offset="1" stopColor="#5cb544" />
+        </linearGradient>
+      </defs>
+
+      {/* dirt faces */}
+      <polygon points="58,19 32,32 32,58 58,45" fill="#6f4c30" />
+      <polygon points="6,19 32,32 32,58 6,45" fill="#865c3a" />
+
+      {/* dirt speckles */}
+      <g fill="#5f4028">
+        <polygon points="14,31 17,32.5 17,35.3 14,33.8" />
+        <polygon points="22,38 25,39.5 25,42.3 22,40.8" />
+        <polygon points="10,39 13,40.5 13,43.3 10,41.8" />
+        <polygon points="21,47 24,48.5 24,51.3 21,49.8" />
+        <polygon points="47,31 44,32.5 44,35.3 47,33.8" />
+        <polygon points="39,38 36,39.5 36,42.3 39,40.8" />
+        <polygon points="51,39 48,40.5 48,43.3 51,41.8" />
+        <polygon points="40,47 37,48.5 37,51.3 40,49.8" />
+      </g>
+      <g fill="#9a724c">
+        <polygon points="17,44 20,45.5 20,48.3 17,46.8" />
+        <polygon points="27,33 30,34.5 30,37.3 27,35.8" />
+        <polygon points="44,44 41,45.5 41,48.3 44,46.8" />
+        <polygon points="34,33 31,34.5 31,37.3 34,35.8" />
+      </g>
+
+      {/* grass fringe on the sides */}
+      <polygon points="6,19 32,32 32,35.5 6,22.5" fill="#6db74b" />
+      <polygon points="58,19 32,32 32,35.5 58,22.5" fill="#5ea342" />
+
+      {/* grass top */}
+      <polygon points="32,6 58,19 32,32 6,19" fill="url(#mp-top)" />
+      <g>
+        <polygon points="20,16 23,17.5 20,19 17,17.5" fill="#a8ef8a" />
+        <polygon points="40,20 43,21.5 40,23 37,21.5" fill="#4fa238" />
+        <polygon points="32,11 35,12.5 32,14 29,12.5" fill="#a8ef8a" />
+        <polygon points="46,13 49,14.5 46,16 43,14.5" fill="#7fd462" />
+        <polygon points="15,22 18,23.5 15,25 12,23.5" fill="#4fa238" />
+      </g>
+
+      {/* edges */}
+      <g stroke="rgba(0,0,0,0.32)" strokeWidth="1.4" strokeLinejoin="round">
+        <polygon points="32,6 58,19 32,32 6,19" />
+        <polygon points="6,19 32,32 32,58 6,45" />
+        <polygon points="58,19 32,32 32,58 58,45" />
+      </g>
+
+      {/* gold packed / verified badge */}
+      <circle cx="48.5" cy="47.5" r="9.5" fill="#f5c84c" stroke="#21180a" strokeWidth="2" />
+      <path
+        d="M43.8 47.4l3.1 3.1 6.6-7"
+        stroke="#21180a"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

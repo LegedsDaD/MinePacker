@@ -68,18 +68,6 @@ npm run build
 
 The production output is written to `dist/`.
 
-## Deploying to Vercel
-
-The repository includes `vercel.json` and is ready for Vite deployment.
-
-1. Import the repository into Vercel.
-2. Keep the detected framework as **Vite**.
-3. Use `npm run build` as the build command.
-4. Use `dist` as the output directory.
-5. Deploy.
-
-No environment variables or server functions are required. Conversion and ZIP generation happen in the browser.
-
 ## Generated pack contents
 
 ```text

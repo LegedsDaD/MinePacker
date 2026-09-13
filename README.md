@@ -84,42 +84,38 @@ No environment variables or server functions are required. Conversion and ZIP ge
 
 ```text
 oak_house.minepacker.zip
-├── pack.mcmeta                       pack_format 48 · range 48–71
+├── pack.mcmeta                       pack_format 107 (Minecraft 26.2)
 ├── minepacker.manifest.json          build registry (MinePacker only)
 └─ data
-   ├─ minecraft/tags/function/load.json
-   │  triggers <ns>:load on /reload
-   └─ ubuilder/function
-      ├─ oak_house.mcfunction         the build itself
-      ├─ generate.mcfunction          shortcut to the default build
-      ├─ genrate.mcfunction           legacy spelling alias
-      ├─ list.mcfunction              clickable list of every build
-      ├─ load.mcfunction              welcome message
-      └─ info.mcfunction              pack stats
+   ├─ minecraft/tags/
+   │  ├─ function/load.json           Minecraft 1.21 - 26.2+
+   │  └─ functions/load.json          legacy versions
+   └─ ubuilder/
+      ├─ function/                    Minecraft 1.21 - 26.2+
+      │  ├─ oak_house.mcfunction      the build itself
+      │  ├─ generate.mcfunction       shortcut to the default build
+      │  ├─ genrate.mcfunction        legacy spelling alias
+      │  ├─ list.mcfunction           clickable list of every build
+      │  ├─ load.mcfunction           welcome message
+      │  └─ info.mcfunction           pack stats
+      └─ functions/                   legacy versions
+         └─ (mirrored files)
 ```
 
-Each build is written into **both** `function/` (Minecraft 1.21+) and
-`functions/` (1.20.4 and earlier) folders, and the load tag is written into
-both `tags/function/` and `tags/functions/`. The game uses whichever layout
-matches its version and ignores the other, so a generated pack registers its
-functions on every supported version.
-
-`pack.mcmeta` uses the Minecraft **range format** for `supported_formats`:
+`pack.mcmeta` is formatted specifically for **Minecraft 26.2** (pack_format 107) with backwards compatibility across all modern Java versions:
 
 ```json
 {
   "pack": {
-    "pack_format": 48,
+    "pack_format": 107,
     "supported_formats": {
-      "min_inclusive": 48,
-      "max_inclusive": 71
+      "min_inclusive": 15,
+      "max_inclusive": 150
     },
-    "description": "oak_house — 1 build · MinePacker v2.0 by LegedsDaD"
+    "description": "oak_house - 1 build - Minecraft 26.2 - MinePacker v2.0 by LegedsDaD"
   }
 }
 ```
-
-This covers Minecraft Java Edition 1.21 through 1.21.5+.
 
 MinePacker merge accepts only packs containing a valid `minepacker.manifest.json` created by MinePacker. This keeps the build registry and generated command list synchronized.
 
@@ -164,7 +160,8 @@ src/
 
 ## Compatibility
 
-- Minecraft Java Edition 1.21+
+- **Target version**: Minecraft Java Edition 26.2 (pack_format 107)
+- Compatible with: Minecraft Java Edition 1.20 through 26.2+
 - Vanilla datapacks; no mods required
 - Modern browsers with `Blob`, File API, and object URL support
 

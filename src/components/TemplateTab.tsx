@@ -81,9 +81,14 @@ export default function TemplateTab() {
 
         <div className="flex flex-col gap-6">
           <div className="pixel-border p-5">
-            <h3 className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-[var(--green)]">
-              required fields
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-[var(--green)]">
+                required fields
+              </h3>
+              <span className="rounded-full border border-[var(--gold)]/30 bg-[var(--gold)]/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[var(--gold)]">
+                Minecraft 26.2 Strict
+              </span>
+            </div>
             <ul className="mt-3 space-y-3">
               {FIELDS.map(([k, d]) => (
                 <li key={k} className="border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">

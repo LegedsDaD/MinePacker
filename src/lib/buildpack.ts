@@ -3,6 +3,8 @@ import JSZip from "jszip";
 export const CREATOR = "LegedsDaD";
 export const FORGE_NAME = "MinePacker";
 export const FORGE_VERSION = "2.0";
+export const MINECRAFT_TARGET_VERSION = "26.2";
+export const PACK_FORMAT_26_2 = 107;
 export const PACK_EXT = ".minepacker.zip";
 
 export type Vec3 = [number, number, number];
@@ -366,14 +368,14 @@ export function mcmetaText(packName: string, builds: PackBuild[]) {
   return JSON.stringify(
     {
       pack: {
-        pack_format: 48,
+        pack_format: PACK_FORMAT_26_2,
         supported_formats: {
-          min_inclusive: 48,
-          max_inclusive: 71,
+          min_inclusive: 15,
+          max_inclusive: 150,
         },
         description: `${packName} - ${builds.length} build${
           builds.length === 1 ? "" : "s"
-        } - ${FORGE_NAME} v${FORGE_VERSION} by ${CREATOR}`,
+        } - Minecraft ${MINECRAFT_TARGET_VERSION} - ${FORGE_NAME} v${FORGE_VERSION} by ${CREATOR}`,
       },
     },
     null,
@@ -774,8 +776,7 @@ ${f}
    \`/function <namespace>:<command>\`.
 4. \`/function <namespace>:list\` shows every build in the pack.
 
-The pack works on Minecraft Java Edition 1.21 through 1.21.5+ (pack_format
-48–71). No mods required.
+The pack is built for Minecraft Java Edition 26.2 (pack_format 107) with backwards compatibility across 1.20 - 26.2+. No mods required.
 
 ## 6 · Adding more buildings
 

@@ -43,7 +43,7 @@ const ENTRY_FORMS: { title: string; accent: string; desc: string; code: string }
 
 const RULES: { ok: boolean; text: string }[] = [
   { ok: true, text: "All four top-level fields are required: name, namespace, command, blocks." },
-  { ok: true, text: "Generated packs use pack_format 107 (integer) for Minecraft Java 26.2." },
+  { ok: true, text: "Generated packs use data pack format 107.1 for Minecraft Java 26.2." },
   { ok: true, text: "Each .mcfunction command is written on its own line with no leading slash." },
   { ok: true, text: "Use # for comments and blank lines; both are ignored by Minecraft." },
   { ok: true, text: "Coordinates are whole numbers [x, y, z] — x east, y up, z south." },

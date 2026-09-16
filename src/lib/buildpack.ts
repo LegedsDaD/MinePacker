@@ -4,8 +4,12 @@ export const CREATOR = "LegedsDaD";
 export const FORGE_NAME = "MinePacker";
 export const FORGE_VERSION = "2.0";
 export const MINECRAFT_TARGET_VERSION = "26.2";
-// pack_format must be an integer in pack.mcmeta (never a float like 107.1).
-export const PACK_FORMAT_26_2 = 107;
+// Minecraft Java 26.2 uses data pack format 107.1.
+// Since 1.21.9, modern packs should declare an exact [major, minor]
+// compatibility range with min_format/max_format. Do NOT write 107.1 as a
+// JSON number; Minecraft's modern pack metadata represents the minor version
+// as a two-element array.
+export const PACK_FORMAT_26_2: [number, number] = [107, 1];
 export const PACK_EXT = ".minepacker.zip";
 
 export type Vec3 = [number, number, number];
@@ -369,7 +373,10 @@ export function mcmetaText(packName: string, builds: PackBuild[]) {
   return JSON.stringify(
     {
       pack: {
-        pack_format: PACK_FORMAT_26_2,
+        // Exact Minecraft 26.2 data-pack format: 107.1.
+        // Modern pack metadata uses [major, minor] arrays.
+        min_format: PACK_FORMAT_26_2,
+        max_format: PACK_FORMAT_26_2,
         description: `${packName} - ${builds.length} build${
           builds.length === 1 ? "" : "s"
         } - Minecraft ${MINECRAFT_TARGET_VERSION} - ${FORGE_NAME} v${FORGE_VERSION} by ${CREATOR}`,
@@ -411,13 +418,10 @@ export function makeManifest(
 }
 
 // ------------------------------------------------------------- packaging ---
-// 26.x documentation disagrees between the singular ("function", 1.21-26.2
-// style) and plural ("functions", legacy style) datapack folders, so the
-// pack is written into BOTH layouts. Minecraft reads only the folder name
-// its version expects and ignores the other, which guarantees the functions
-// and the load tag are always found.
-const FN_DIRS = ["function", "functions"] as const;
-const TAG_DIRS = ["tags/function", "tags/functions"] as const;
+// Minecraft Java 26.2 uses the singular datapack directory names:
+//   data/<namespace>/function/
+//   data/minecraft/tags/function/
+// Do not create the old plural "functions" layout in a 26.2 pack.
 
 /**
  * Write a JSON file after proving the string round-trips through JSON.parse.
@@ -431,17 +435,15 @@ function writeJsonFile(zip: JSZip, path: string, text: string) {
 
 /** Write one .mcfunction into the function folders (both layouts). */
 function writeFunction(zip: JSZip, ns: string, name: string, content: string) {
-  for (const fn of FN_DIRS) {
-    // Function files contain commands, not chat input. Strip only an
-    // accidental slash at the beginning of a line before packaging so the
-    // generated file always follows Minecraft's .mcfunction format.
-    const normalized = content
-      .replace(/\r\n/g, "\n")
-      .split("\n")
-      .map((line) => (line.startsWith("/") ? line.slice(1) : line))
-      .join("\n");
-    zip.file(`data/${ns}/${fn}/${name}.mcfunction`, normalized);
-  }
+  // Function files contain commands, not chat input. Strip only an
+  // accidental slash at the beginning of a line before packaging so the
+  // generated file always follows Minecraft's .mcfunction format.
+  const normalized = content
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => (line.startsWith("/") ? line.slice(1) : line))
+    .join("\n");
+  zip.file(`data/${ns}/function/${name}.mcfunction`, normalized);
 }
 
 function writeShared(zip: JSZip, manifest: Manifest) {
@@ -455,11 +457,9 @@ function writeShared(zip: JSZip, manifest: Manifest) {
   writeFunction(zip, ns, "list", listText(ns, builds));
   writeFunction(zip, ns, "info", infoText(ns, builds, def));
 
-  // load tag in both tag folders so :load runs automatically on /reload
+  // The vanilla #minecraft:load tag is located here in 26.2.
   const loadTag = JSON.stringify({ values: [`${ns}:load`] }, null, 2);
-  for (const tag of TAG_DIRS) {
-    writeJsonFile(zip, `data/minecraft/${tag}/load.json`, loadTag);
-  }
+  writeJsonFile(zip, "data/minecraft/tags/function/load.json", loadTag);
 }
 
 export type ForgeOptions = {
@@ -809,7 +809,7 @@ save generated function content as \`.txt\`; it must end in \`.mcfunction\`.
    \`/function <namespace>:<command>\`.
 4. \`/function <namespace>:list\` shows every build in the pack.
 
-The pack is built specifically for Minecraft Java Edition 26.2 (pack_format 107, integer). No mods required.
+The pack is built specifically for Minecraft Java Edition 26.2 (data pack format 107.1). No mods required.
 
 ## 7 · Adding more buildings
 

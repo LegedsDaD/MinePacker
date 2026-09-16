@@ -84,31 +84,28 @@ No environment variables or server functions are required. Conversion and ZIP ge
 
 ```text
 oak_house.minepacker.zip
-├── pack.mcmeta                       pack_format 107 (integer, Minecraft 26.2)
+├── pack.mcmeta                       data pack format 107.1 (Minecraft 26.2)
 ├── minepacker.manifest.json          build registry (MinePacker only)
 └─ data
    ├─ minecraft/tags/
-   │  ├─ function/load.json            singular tag layout (1.21+ style)
-   │  └─ functions/load.json           plural tag layout (legacy style)
+   │  └─ function/load.json           vanilla #minecraft:load tag
    └─ ubuilder/
-      ├─ function/                     singular function directory
-      │  └─ *.mcfunction
-      └─ functions/                    plural function directory
-         └─ *.mcfunction (mirrored)
+      └─ function/                    Minecraft 26.2 function directory
+         └─ *.mcfunction
 ```
 
-Every `.mcfunction` exists in both `function/` and `functions/`, and the load
-tag exists in both `tags/function/` and `tags/functions/`. Minecraft reads
-only the layout its version expects and ignores the other, so the functions
-and the `/reload` load trigger are always found.
+Minecraft Java 26.2 uses the singular `function/` directory and
+`tags/function/` tag directory. The generated pack contains only this
+26.2 layout.
 
-`pack.mcmeta` is formatted specifically for **Minecraft 26.2** with an
-**integer** `pack_format` (never a float):
+`pack.mcmeta` is formatted specifically for **Minecraft 26.2** with exact
+`min_format` / `max_format` arrays for data pack format 107.1:
 
 ```json
 {
   "pack": {
-    "pack_format": 107,
+    "min_format": [107, 1],
+    "max_format": [107, 1],
     "description": "oak_house - 1 build - Minecraft 26.2 - MinePacker v2.0 by LegedsDaD"
   }
 }
@@ -162,7 +159,7 @@ src/
 
 ## Compatibility
 
-- **Target version**: Minecraft Java Edition 26.2 (pack_format 107.1)
+- **Target version**: Minecraft Java Edition 26.2 (data pack format 107.1.1)
 - Vanilla datapacks; no mods required
 - Modern browsers with `Blob`, File API, and object URL support
 

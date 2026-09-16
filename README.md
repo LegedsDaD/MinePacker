@@ -87,19 +87,19 @@ oak_house.minepacker.zip
 ├── pack.mcmeta                       data pack format 107.1 (Minecraft 26.2)
 ├── minepacker.manifest.json          build registry (MinePacker only)
 └─ data
-   ├─ minecraft/tags/
-   │  └─ function/load.json           vanilla #minecraft:load tag
+   ├─ minecraft/tags/function/
+   │  └─ load.json                     automatic /reload trigger
    └─ ubuilder/
-      └─ function/                    Minecraft 26.2 function directory
+      └─ function/                     Minecraft 26.2 function directory
          └─ *.mcfunction
 ```
 
-Minecraft Java 26.2 uses the singular `function/` directory and
-`tags/function/` tag directory. The generated pack contains only this
-26.2 layout.
+Minecraft 26.2 uses the singular `function` directory for function files and
+`tags/function` for function tags. MinePacker generates exactly that layout,
+with no duplicate legacy directories.
 
-`pack.mcmeta` is formatted specifically for **Minecraft 26.2** with exact
-`min_format` / `max_format` arrays for data pack format 107.1:
+`pack.mcmeta` is formatted specifically for **Minecraft 26.2** using the
+full data pack version `107.1` through `min_format` and `max_format`:
 
 ```json
 {

@@ -5,10 +5,9 @@ export const FORGE_NAME = "MinePacker";
 export const FORGE_VERSION = "2.0";
 export const MINECRAFT_TARGET_VERSION = "26.2";
 // Minecraft Java 26.2 uses data pack format 107.1.
-// Since 1.21.9, modern packs should declare an exact [major, minor]
-// compatibility range with min_format/max_format. Do NOT write 107.1 as a
-// JSON number; Minecraft's modern pack metadata represents the minor version
-// as a two-element array.
+// Since pack metadata gained minor-version support, 26.2 packs must declare
+// the full version through min_format/max_format. pack_format is legacy here
+// and must not be used for 26.2.
 export const PACK_FORMAT_26_2: [number, number] = [107, 1];
 export const PACK_EXT = ".minepacker.zip";
 
@@ -373,8 +372,6 @@ export function mcmetaText(packName: string, builds: PackBuild[]) {
   return JSON.stringify(
     {
       pack: {
-        // Exact Minecraft 26.2 data-pack format: 107.1.
-        // Modern pack metadata uses [major, minor] arrays.
         min_format: PACK_FORMAT_26_2,
         max_format: PACK_FORMAT_26_2,
         description: `${packName} - ${builds.length} build${
@@ -418,32 +415,28 @@ export function makeManifest(
 }
 
 // ------------------------------------------------------------- packaging ---
-// Minecraft Java 26.2 uses the singular datapack directory names:
+// Minecraft 26.2 uses the singular datapack directories:
 //   data/<namespace>/function/
 //   data/minecraft/tags/function/
-// Do not create the old plural "functions" layout in a 26.2 pack.
+// Do not create the old plural `functions` directories: they are not part of
+// the 26.2 datapack layout and can make a generated pack misleading.
+const FN_DIR = "function" as const;
+const LOAD_TAG_DIR = "tags/function" as const;
 
-/**
- * Write a JSON file after proving the string round-trips through JSON.parse.
- * This guarantees pack.mcmeta, the manifest and load.json always contain
- * complete, closed JSON - never a truncated object.
- */
+/** Write a JSON file only after proving it is valid JSON. */
 function writeJsonFile(zip: JSZip, path: string, text: string) {
-  JSON.parse(text); // throws if the JSON is not complete
+  JSON.parse(text);
   zip.file(path, text);
 }
 
-/** Write one .mcfunction into the function folders (both layouts). */
+/** Write one .mcfunction in the Minecraft 26.2 function directory. */
 function writeFunction(zip: JSZip, ns: string, name: string, content: string) {
-  // Function files contain commands, not chat input. Strip only an
-  // accidental slash at the beginning of a line before packaging so the
-  // generated file always follows Minecraft's .mcfunction format.
   const normalized = content
     .replace(/\r\n/g, "\n")
     .split("\n")
     .map((line) => (line.startsWith("/") ? line.slice(1) : line))
     .join("\n");
-  zip.file(`data/${ns}/function/${name}.mcfunction`, normalized);
+  zip.file(`data/${ns}/${FN_DIR}/${name}.mcfunction`, normalized);
 }
 
 function writeShared(zip: JSZip, manifest: Manifest) {
@@ -457,9 +450,8 @@ function writeShared(zip: JSZip, manifest: Manifest) {
   writeFunction(zip, ns, "list", listText(ns, builds));
   writeFunction(zip, ns, "info", infoText(ns, builds, def));
 
-  // The vanilla #minecraft:load tag is located here in 26.2.
   const loadTag = JSON.stringify({ values: [`${ns}:load`] }, null, 2);
-  writeJsonFile(zip, "data/minecraft/tags/function/load.json", loadTag);
+  writeJsonFile(zip, `data/minecraft/${LOAD_TAG_DIR}/load.json`, loadTag);
 }
 
 export type ForgeOptions = {

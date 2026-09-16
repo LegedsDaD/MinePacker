@@ -84,40 +84,31 @@ No environment variables or server functions are required. Conversion and ZIP ge
 
 ```text
 oak_house.minepacker.zip
-├── pack.mcmeta                       pack_format 107 (Minecraft 26.2)
+├── pack.mcmeta                       pack_format 107.1 (Minecraft 26.2)
 ├── minepacker.manifest.json          build registry (MinePacker only)
 └─ data
-   ├─ minecraft/tags/
-   │  ├─ function/load.json           Minecraft 1.21 - 26.2+
-   │  └─ functions/load.json          legacy versions
-   └─ ubuilder/
-      ├─ function/                    Minecraft 1.21 - 26.2+
-      │  ├─ oak_house.mcfunction      the build itself
-      │  ├─ generate.mcfunction       shortcut to the default build
-      │  ├─ genrate.mcfunction        legacy spelling alias
-      │  ├─ list.mcfunction           clickable list of every build
-      │  ├─ load.mcfunction           welcome message
-      │  └─ info.mcfunction           pack stats
-      └─ functions/                   legacy versions
-         └─ (mirrored files)
+   ├─ minecraft/tags/function/load.json  runs load on /reload
+   └─ ubuilder/function/                 Minecraft 26.2 function directory
+      ├─ oak_house.mcfunction            the build itself
+      ├─ generate.mcfunction             shortcut to the default build
+      ├─ genrate.mcfunction              legacy spelling alias
+      ├─ list.mcfunction                 clickable list of every build
+      ├─ load.mcfunction                 welcome message
+      └─ info.mcfunction                 pack stats
 ```
 
-`pack.mcmeta` is formatted specifically for **Minecraft 26.2** (pack_format 107) with backwards compatibility across all modern Java versions:
+`pack.mcmeta` is formatted specifically for **Minecraft 26.2** with `pack_format: 107.1`:
 
 ```json
 {
   "pack": {
-    "pack_format": 107,
-    "supported_formats": {
-      "min_inclusive": 15,
-      "max_inclusive": 150
-    },
+    "pack_format": 107.1,
     "description": "oak_house - 1 build - Minecraft 26.2 - MinePacker v2.0 by LegedsDaD"
   }
 }
 ```
 
-MinePacker merge accepts only packs containing a valid `minepacker.manifest.json` created by MinePacker. This keeps the build registry and generated command list synchronized.
+The generated `.mcfunction` files are plain text: one command per line, no leading `/`, `#` starts a comment, and blank lines are ignored. MinePacker merge accepts only packs containing a valid `minepacker.manifest.json` created by MinePacker. This keeps the build registry and generated command list synchronized.
 
 ## Merge options
 
@@ -160,8 +151,7 @@ src/
 
 ## Compatibility
 
-- **Target version**: Minecraft Java Edition 26.2 (pack_format 107)
-- Compatible with: Minecraft Java Edition 1.20 through 26.2+
+- **Target version**: Minecraft Java Edition 26.2 (pack_format 107.1)
 - Vanilla datapacks; no mods required
 - Modern browsers with `Blob`, File API, and object URL support
 

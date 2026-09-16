@@ -4,7 +4,7 @@ export const CREATOR = "LegedsDaD";
 export const FORGE_NAME = "MinePacker";
 export const FORGE_VERSION = "2.0";
 export const MINECRAFT_TARGET_VERSION = "26.2";
-export const PACK_FORMAT_26_2 = 107;
+export const PACK_FORMAT_26_2 = 107.1;
 export const PACK_EXT = ".minepacker.zip";
 
 export type Vec3 = [number, number, number];
@@ -369,10 +369,6 @@ export function mcmetaText(packName: string, builds: PackBuild[]) {
     {
       pack: {
         pack_format: PACK_FORMAT_26_2,
-        supported_formats: {
-          min_inclusive: 15,
-          max_inclusive: 150,
-        },
         description: `${packName} - ${builds.length} build${
           builds.length === 1 ? "" : "s"
         } - Minecraft ${MINECRAFT_TARGET_VERSION} - ${FORGE_NAME} v${FORGE_VERSION} by ${CREATOR}`,
@@ -414,18 +410,23 @@ export function makeManifest(
 }
 
 // ------------------------------------------------------------- packaging ---
-// Minecraft renamed the datapack folders across versions:
-//   - 1.20.4 and earlier (pack_format <= 26): "functions" + "tags/functions"
-//   - 1.21+            (pack_format 48+):     "function"  + "tags/function"
-// We write BOTH layouts so a generated pack works on every version, and the
-// game simply ignores whichever folder it does not recognise.
-const FN_DIRS = ["function", "functions"] as const;
-const TAG_DIRS = ["tags/function", "tags/functions"] as const;
+// MinePacker targets Minecraft Java 26.2. Its datapack layout uses the
+// singular function directory and singular function tag directory.
+const FN_DIRS = ["function"] as const;
+const TAG_DIRS = ["tags/function"] as const;
 
-/** Write one .mcfunction into both the singular and plural function folders. */
+/** Write one .mcfunction into the exact Minecraft 26.2 function folder. */
 function writeFunction(zip: JSZip, ns: string, name: string, content: string) {
   for (const fn of FN_DIRS) {
-    zip.file(`data/${ns}/${fn}/${name}.mcfunction`, content);
+    // Function files contain commands, not chat input. Strip only an
+    // accidental slash at the beginning of a line before packaging so the
+    // generated file always follows Minecraft's .mcfunction format.
+    const normalized = content
+      .replace(/\r\n/g, "\n")
+      .split("\n")
+      .map((line) => (line.startsWith("/") ? line.slice(1) : line))
+      .join("\n");
+    zip.file(`data/${ns}/${fn}/${name}.mcfunction`, normalized);
   }
 }
 
@@ -440,7 +441,7 @@ function writeShared(zip: JSZip, manifest: Manifest) {
   writeFunction(zip, ns, "list", listText(ns, builds));
   writeFunction(zip, ns, "info", infoText(ns, builds, def));
 
-  // load tag (both folder names) so :load runs automatically on /reload
+  // load tag so :load runs automatically on /reload
   const loadTag = JSON.stringify({ values: [`${ns}:load`] }, null, 2);
   for (const tag of TAG_DIRS) {
     zip.file(`data/minecraft/${tag}/load.json`, loadTag);
@@ -751,10 +752,28 @@ ${f}
 ${f}
 "minecraft:glass~2,2,0"     → single glass block at [2,2,0]
 "clear~4,1,8"               → removes the block at [4,1,8]
-"--- walls ---"             → label/comment, ignored by the converter
 ${f}
 
-## 4 · Rules
+## 4 · Minecraft 26.2 function-file rules
+
+MinePacker creates plain text files with the \`.mcfunction\` extension under:
+
+\`data/<namespace>/function/<path>/<filename>.mcfunction\`
+
+Every command is on its own line, with **no leading slash**. A slash is only
+used when you run the function in chat:
+
+${f}mcfunction
+# This is a comment. Minecraft ignores it.
+say Hello from Minecraft 26.2!
+setblock ~0 ~0 ~0 minecraft:stone
+fill ~0 ~0 ~0 ~4 ~0 ~4 minecraft:oak_planks
+${f}
+
+Blank lines are allowed. Use \`#\` at the start of a line for comments. Do not
+save generated function content as \`.txt\`; it must end in \`.mcfunction\`.
+
+## 5 · Rules
 
 - All four top-level fields are required: \`name\`, \`namespace\`,
   \`command\`, \`blocks\`.
@@ -768,7 +787,7 @@ ${f}
   \`list\` or \`info\` (reserved).
 - The \`minecraft:\` prefix on block ids is added automatically.
 
-## 5 · Install
+## 6 · Install
 
 1. Put \`*.minepacker.zip\` into \`<world>/datapacks/\` (don't unzip it).
 2. Re-enter the world or run \`/reload\`.
@@ -776,9 +795,9 @@ ${f}
    \`/function <namespace>:<command>\`.
 4. \`/function <namespace>:list\` shows every build in the pack.
 
-The pack is built for Minecraft Java Edition 26.2 (pack_format 107) with backwards compatibility across 1.20 - 26.2+. No mods required.
+The pack is built specifically for Minecraft Java Edition 26.2 (pack_format 107.1). No mods required.
 
-## 6 · Adding more buildings
+## 7 · Adding more buildings
 
 Give every new JSON the SAME \`namespace\` and a DIFFERENT \`command\`, then
 use the **Merge** tab: load a \`.minepacker.zip\`, add the new JSON, and

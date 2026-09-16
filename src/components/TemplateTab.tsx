@@ -35,15 +35,17 @@ const ENTRY_FORMS: { title: string; accent: string; desc: string; code: string }
   {
     title: "Compact string",
     accent: "var(--teal)",
-    desc: "One-line blocks and labels. Labels starting with --- are ignored notes.",
+    desc: "Optional one-line shorthand for a single block or a clear entry. Object entries are easiest to edit.",
     code: `"minecraft:glass~2,2,0"
-"clear~4,1,8"
-"--- walls ---"`,
+"clear~4,1,8"`,
   },
 ];
 
 const RULES: { ok: boolean; text: string }[] = [
   { ok: true, text: "All four top-level fields are required: name, namespace, command, blocks." },
+  { ok: true, text: "Generated files target Minecraft Java 26.2 with pack_format 107.1." },
+  { ok: true, text: "Each .mcfunction command is written on its own line with no leading slash." },
+  { ok: true, text: "Use # for comments and blank lines; both are ignored by Minecraft." },
   { ok: true, text: "Coordinates are whole numbers [x, y, z] — x east, y up, z south." },
   { ok: true, text: "Start your build at [0,0,0]; that corner lands where you stand in-game." },
   { ok: true, text: "Entries apply in order — later ones overwrite earlier ones; clear punches holes." },
@@ -109,6 +111,29 @@ export default function TemplateTab() {
                 <span className="text-[var(--teal)]">command</span>
               </span>
             </div>
+          </div>
+
+          <div className="pixel-border p-5">
+            <h3 className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-[var(--gold)]">
+              26.2 function-file rules
+            </h3>
+            <p className="mt-3 text-[12.5px] leading-relaxed text-[var(--muted)]">
+              MinePacker writes plain text <code className="text-[var(--teal)]">.mcfunction</code> files
+              under <code className="text-[var(--gold)]">data/&lt;namespace&gt;/function/</code>. Each line is
+              a Minecraft command, never a chat command.
+            </p>
+            <pre className="mt-3 overflow-auto rounded-lg border border-[var(--line)] bg-black/30 p-3 font-mono text-[11.5px] leading-[1.7] text-[#c3d0b5]">
+{`# comments begin with a hashtag
+say Hello from MinePacker
+setblock ~0 ~0 ~0 minecraft:stone
+fill ~0 ~0 ~0 ~4 ~0 ~4 minecraft:oak_planks`}
+            </pre>
+            <ul className="mt-3 space-y-1.5 text-[11.5px] leading-relaxed text-[var(--muted)]">
+              <li>✓ save the file with the .mcfunction extension</li>
+              <li>✓ one command per line</li>
+              <li>✓ no leading / inside the file</li>
+              <li>✓ blank lines and # comments are safe</li>
+            </ul>
           </div>
 
           <div className="pixel-border p-5">

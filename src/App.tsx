@@ -151,7 +151,7 @@ export default function App() {
                 </button>
               </div>
               <div className="mt-7 flex flex-wrap gap-2 font-mono text-[10.5px] text-[var(--muted)]">
-                {["100% in-browser", "no uploads", "Minecraft 26.2", "pack_format 107.1", "vanilla · no mods"].map((c) => (
+                {["100% in-browser", "no uploads", "Minecraft 26.2", "pack_format 107", "vanilla · no mods"].map((c) => (
                   <span key={c} className="rounded-full border border-[var(--line)] bg-black/20 px-2.5 py-1">
                     {c}
                   </span>

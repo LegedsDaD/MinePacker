@@ -4,7 +4,8 @@ export const CREATOR = "LegedsDaD";
 export const FORGE_NAME = "MinePacker";
 export const FORGE_VERSION = "2.0";
 export const MINECRAFT_TARGET_VERSION = "26.2";
-export const PACK_FORMAT_26_2 = 107.1;
+// pack_format must be an integer in pack.mcmeta (never a float like 107.1).
+export const PACK_FORMAT_26_2 = 107;
 export const PACK_EXT = ".minepacker.zip";
 
 export type Vec3 = [number, number, number];
@@ -410,12 +411,25 @@ export function makeManifest(
 }
 
 // ------------------------------------------------------------- packaging ---
-// MinePacker targets Minecraft Java 26.2. Its datapack layout uses the
-// singular function directory and singular function tag directory.
-const FN_DIRS = ["function"] as const;
-const TAG_DIRS = ["tags/function"] as const;
+// 26.x documentation disagrees between the singular ("function", 1.21-26.2
+// style) and plural ("functions", legacy style) datapack folders, so the
+// pack is written into BOTH layouts. Minecraft reads only the folder name
+// its version expects and ignores the other, which guarantees the functions
+// and the load tag are always found.
+const FN_DIRS = ["function", "functions"] as const;
+const TAG_DIRS = ["tags/function", "tags/functions"] as const;
 
-/** Write one .mcfunction into the exact Minecraft 26.2 function folder. */
+/**
+ * Write a JSON file after proving the string round-trips through JSON.parse.
+ * This guarantees pack.mcmeta, the manifest and load.json always contain
+ * complete, closed JSON - never a truncated object.
+ */
+function writeJsonFile(zip: JSZip, path: string, text: string) {
+  JSON.parse(text); // throws if the JSON is not complete
+  zip.file(path, text);
+}
+
+/** Write one .mcfunction into the function folders (both layouts). */
 function writeFunction(zip: JSZip, ns: string, name: string, content: string) {
   for (const fn of FN_DIRS) {
     // Function files contain commands, not chat input. Strip only an
@@ -432,8 +446,8 @@ function writeFunction(zip: JSZip, ns: string, name: string, content: string) {
 
 function writeShared(zip: JSZip, manifest: Manifest) {
   const { namespace: ns, builds, default: def, packName } = manifest;
-  zip.file(MANIFEST, JSON.stringify(manifest, null, 2));
-  zip.file("pack.mcmeta", mcmetaText(packName, builds));
+  writeJsonFile(zip, MANIFEST, JSON.stringify(manifest, null, 2));
+  writeJsonFile(zip, "pack.mcmeta", mcmetaText(packName, builds));
 
   writeFunction(zip, ns, "generate", dispatcherText(ns, def));
   writeFunction(zip, ns, "genrate", `# legacy spelling - both work\nfunction ${ns}:generate\n`);
@@ -441,10 +455,10 @@ function writeShared(zip: JSZip, manifest: Manifest) {
   writeFunction(zip, ns, "list", listText(ns, builds));
   writeFunction(zip, ns, "info", infoText(ns, builds, def));
 
-  // load tag so :load runs automatically on /reload
+  // load tag in both tag folders so :load runs automatically on /reload
   const loadTag = JSON.stringify({ values: [`${ns}:load`] }, null, 2);
   for (const tag of TAG_DIRS) {
-    zip.file(`data/minecraft/${tag}/load.json`, loadTag);
+    writeJsonFile(zip, `data/minecraft/${tag}/load.json`, loadTag);
   }
 }
 
@@ -795,7 +809,7 @@ save generated function content as \`.txt\`; it must end in \`.mcfunction\`.
    \`/function <namespace>:<command>\`.
 4. \`/function <namespace>:list\` shows every build in the pack.
 
-The pack is built specifically for Minecraft Java Edition 26.2 (pack_format 107.1). No mods required.
+The pack is built specifically for Minecraft Java Edition 26.2 (pack_format 107, integer). No mods required.
 
 ## 7 · Adding more buildings
 

@@ -84,29 +84,40 @@ No environment variables or server functions are required. Conversion and ZIP ge
 
 ```text
 oak_house.minepacker.zip
-├── pack.mcmeta                       pack_format 107.1 (Minecraft 26.2)
+├── pack.mcmeta                       pack_format 107 (integer, Minecraft 26.2)
 ├── minepacker.manifest.json          build registry (MinePacker only)
 └─ data
-   ├─ minecraft/tags/function/load.json  runs load on /reload
-   └─ ubuilder/function/                 Minecraft 26.2 function directory
-      ├─ oak_house.mcfunction            the build itself
-      ├─ generate.mcfunction             shortcut to the default build
-      ├─ genrate.mcfunction              legacy spelling alias
-      ├─ list.mcfunction                 clickable list of every build
-      ├─ load.mcfunction                 welcome message
-      └─ info.mcfunction                 pack stats
+   ├─ minecraft/tags/
+   │  ├─ function/load.json            singular tag layout (1.21+ style)
+   │  └─ functions/load.json           plural tag layout (legacy style)
+   └─ ubuilder/
+      ├─ function/                     singular function directory
+      │  └─ *.mcfunction
+      └─ functions/                    plural function directory
+         └─ *.mcfunction (mirrored)
 ```
 
-`pack.mcmeta` is formatted specifically for **Minecraft 26.2** with `pack_format: 107.1`:
+Every `.mcfunction` exists in both `function/` and `functions/`, and the load
+tag exists in both `tags/function/` and `tags/functions/`. Minecraft reads
+only the layout its version expects and ignores the other, so the functions
+and the `/reload` load trigger are always found.
+
+`pack.mcmeta` is formatted specifically for **Minecraft 26.2** with an
+**integer** `pack_format` (never a float):
 
 ```json
 {
   "pack": {
-    "pack_format": 107.1,
+    "pack_format": 107,
     "description": "oak_house - 1 build - Minecraft 26.2 - MinePacker v2.0 by LegedsDaD"
   }
 }
 ```
+
+All JSON files inside the pack (`pack.mcmeta`, `minepacker.manifest.json`,
+`load.json`) are written through `JSON.stringify` on complete objects and
+round-trip validated with `JSON.parse` before being added to the zip, so
+they always contain complete, closed JSON.
 
 The generated `.mcfunction` files are plain text: one command per line, no leading `/`, `#` starts a comment, and blank lines are ignored. MinePacker merge accepts only packs containing a valid `minepacker.manifest.json` created by MinePacker. This keeps the build registry and generated command list synchronized.
 

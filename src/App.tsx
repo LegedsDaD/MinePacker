@@ -130,9 +130,8 @@ export default function App() {
               </h1>
               <p className="mt-6 max-w-xl text-[15px] leading-relaxed text-[var(--muted)]">
                 Follow the required template, paste your house or structure JSON, and download a{" "}
-                <span className="font-mono text-[var(--gold)]">.minepacker.zip</span> datapack built for{" "}
-                <span className="font-mono text-[var(--teal)]">Minecraft 26.2</span>. Merge more buildings into
-                the same pack — every build gets its own{" "}
+                <span className="font-mono text-[var(--gold)]">.minepacker.zip</span> datapack for any world.
+                Merge more buildings into the same pack — every build gets its own{" "}
                 <span className="font-mono text-[var(--green)]">/function</span> command, shown ready to copy.
               </p>
             </Reveal>
@@ -152,7 +151,7 @@ export default function App() {
                 </button>
               </div>
               <div className="mt-7 flex flex-wrap gap-2 font-mono text-[10.5px] text-[var(--muted)]">
-                {["100% in-browser", "no uploads", "Minecraft 26.2", "vanilla · no mods"].map((c) => (
+                {["100% in-browser", "no uploads", "Minecraft 26.2", "pack_format 107", "vanilla · no mods"].map((c) => (
                   <span key={c} className="rounded-full border border-[var(--line)] bg-black/20 px-2.5 py-1">
                     {c}
                   </span>
@@ -208,8 +207,8 @@ export default function App() {
               <span className="font-mono text-[11px] text-[var(--muted)]">· created by {CREATOR}</span>
             </div>
             <p className="font-mono text-[10.5px] text-[var(--muted)]">
-              for Minecraft Java 26.2 (datapack format 107) · drop the .minepacker.zip into world/datapacks ·
-              /reload · /function ns:build · not affiliated with Mojang
+              install: drop the .minepacker.zip into world/datapacks · /reload · /function ns:build · not
+              affiliated with Mojang
             </p>
           </div>
         </footer>

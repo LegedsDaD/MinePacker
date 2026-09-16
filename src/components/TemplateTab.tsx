@@ -1,4 +1,4 @@
-import { REQUIRED_TEMPLATE, FULL_MARKDOWN, CREATOR, TARGET_MC_VERSION } from "../lib/buildpack";
+import { REQUIRED_TEMPLATE, FULL_MARKDOWN, CREATOR } from "../lib/buildpack";
 import CopyButton from "../components/CopyButton";
 import DownloadButton from "../components/DownloadButton";
 
@@ -69,9 +69,6 @@ export default function TemplateTab() {
             <span className="pixel-sq bg-[var(--green)]" />
             <span className="font-mono text-[12px] font-semibold text-[var(--text)]">template.json</span>
             <span className="font-mono text-[10.5px] text-[var(--muted)]">required format</span>
-            <span className="rounded-full border border-[var(--teal)]/30 bg-[var(--teal)]/10 px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-wider text-[var(--teal)]">
-              for Minecraft {TARGET_MC_VERSION}
-            </span>
             <div className="ml-auto flex gap-2">
               <CopyButton text={REQUIRED_TEMPLATE} />
               <DownloadButton content={REQUIRED_TEMPLATE} fileName="template.json" mime="application/json" label="download" variant="gold" />
@@ -84,9 +81,14 @@ export default function TemplateTab() {
 
         <div className="flex flex-col gap-6">
           <div className="pixel-border p-5">
-            <h3 className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-[var(--green)]">
-              required fields
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-[var(--green)]">
+                required fields
+              </h3>
+              <span className="rounded-full border border-[var(--gold)]/30 bg-[var(--gold)]/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[var(--gold)]">
+                Minecraft 26.2 Strict
+              </span>
+            </div>
             <ul className="mt-3 space-y-3">
               {FIELDS.map(([k, d]) => (
                 <li key={k} className="border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">

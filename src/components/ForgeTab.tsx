@@ -175,10 +175,10 @@ export default function ForgeTab({ onNeedTemplate }: { onNeedTemplate?: () => vo
         <RunCommand namespace={ns} command={cmd} ready={parsed.ok} />
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat label="target" value="MC 26.2" />
           <Stat label="blocks" value={parsed.ok ? String(parsed.blocks.length) : "—"} />
           <Stat label="commands" value={parsed.ok ? String(parsed.ops.length) : "—"} />
           <Stat label="footprint" value={dims ? `${dims.w}×${dims.h}×${dims.d}` : "—"} />
-          <Stat label="pack files" value={parsed.ok ? "8" : "—"} />
         </div>
 
         {parsed.ok && palette.length > 0 && (
